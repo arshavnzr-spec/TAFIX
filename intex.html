@@ -1,0 +1,86 @@
+
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0477 Contact Finder</title>
+<style>
+body{font-family:Arial,sans-serif;margin:20px;background:#f3f5f8;color:#222}
+h2{color:#174ea6}
+.card{background:white;padding:18px;border-radius:12px;margin:14px 0}
+input,button{padding:12px;margin:6px 0;width:100%;box-sizing:border-box;font-size:16px}
+button{background:#1769d2;color:white;border:0;border-radius:8px}
+#results{word-break:break-all}
+</style>
+</head>
+<body>
+<h2>0477 Contact Finder</h2>
+<div class="card">
+<h3>தொடர்பு எண்களை இறக்குமதி செய்யுங்கள்</h3>
+<p>உங்களிடம் உள்ள CSV கோப்பை மட்டும் தேர்வு செய்யுங்கள்.</p>
+<input type="file" id="file" accept=".csv,text/csv">
+<button onclick="importCSV()">எண்களைச் சேமிக்கவும்</button>
+<p id="status">தயார்</p>
+</div>
+<div class="card">
+<h3>கடைசி இலக்கங்களால் தேடுங்கள்</h3>
+<input id="suffix" value="0477" maxlength="10" placeholder="கடைசி இலக்கங்கள்">
+<button onclick="searchNumbers()">தேடு</button>
+<p id="count"></p>
+<div id="results"></div>
+</div>
+<script>
+const DB="ContactFinderDB";
+let db;
+const request=indexedDB.open(DB,1);
+request.onupgradeneeded=e=>{
+ const d=e.target.result;
+ d.createObjectStore("contacts",{keyPath:"id",autoIncrement:true});
+};
+request.onsuccess=e=>{db=e.target.result;};
+function parseCSV(text){
+ return text.split(/\r?\n/).map(line=>{
+  let parts=line.match(/("([^"]|"")*"|[^,]*)(,|$)/g)||[];
+  return parts.map(x=>x.replace(/,$/,"").trim().replace(/^"|"$/g,"").replace(/""/g,'"'));
+ });
+}
+async function importCSV(){
+ if(!db){alert("சிறிது நேரம் கழித்து முயற்சிக்கவும்");return;}
+ const file=document.getElementById("file").files[0];
+ if(!file){alert("முதலில் CSV கோப்பைத் தேர்வு செய்யுங்கள்");return;}
+ const text=await file.text();
+ const rows=parseCSV(text);
+ const tx=db.transaction("contacts","readwrite");
+ const store=tx.objectStore("contacts");
+ let added=0;
+ rows.forEach(row=>{
+  row.forEach(value=>{
+   let n=value.replace(/\D/g,"");
+   if(n.length>=7 && n.length<=15){
+    store.add({number:n});
+    added++;
+   }
+  });
+ });
+ tx.oncomplete=()=>document.getElementById("status").textContent=
+  added+" எண்கள் சேமிக்கப்பட்டன";
+ tx.onerror=()=>alert("சேமிப்பதில் பிழை ஏற்பட்டது");
+}
+function searchNumbers(){
+ if(!db){alert("தயவு செய்து காத்திருக்கவும்");return;}
+ const suffix=document.getElementById("suffix").value.replace(/\D/g,"");
+ if(!suffix){alert("தேட வேண்டிய இலக்கங்களை உள்ளிடுங்கள்");return;}
+ const tx=db.transaction("contacts","readonly");
+ const req=tx.objectStore("contacts").getAll();
+ req.onsuccess=()=>{
+  const found=req.result.filter(x=>x.number.endsWith(suffix));
+  document.getElementById("count").textContent=
+   "கிடைத்த எண்கள்: "+found.length;
+  document.getElementById("results").innerHTML=
+   found.slice(0,500).map(x=>"<p>"+x.number+"</p>").join("");
+ };
+}
+</script>
+</body>
+</html>
